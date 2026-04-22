@@ -381,23 +381,28 @@ async function handleUpload(req, res) {
             INTERVAL: parsed.interval
           };
 
-    const boards = await detectBoards(logs);
-    const selected = pickBoard(boards, parsed);
-
-    if (!selected) {
-      sendJson(res, 400, {
-        ok: false,
-        message: "No supported board detected. Connect board and retry.",
-        boards,
-        logs
-      });
-      return;
+    let boards = [];
+    try {
+      boards = await detectBoards(logs);
+    } catch (boardErr) {
+      logs.push(`Board detect failed: ${String(boardErr && boardErr.message ? boardErr.message : boardErr)}`);
+      boards = [];
     }
 
+    const selected = pickBoard(boards, parsed);
+    const requestedFqbn = parsed && typeof parsed.fqbn === "string" ? parsed.fqbn.trim() : "";
+    const compileFqbn = selected && selected.fqbn ? selected.fqbn : requestedFqbn || FQBN;
+
     logs.push(`Selected template: ${template.id} (${template.fileName})`);
-    logs.push(`Selected board: ${selected.boardName}`);
-    logs.push(`Selected fqbn: ${selected.fqbn}`);
-    logs.push(`Selected port: ${selected.port}`);
+    if (selected) {
+      logs.push(`Selected board: ${selected.boardName}`);
+      logs.push(`Selected fqbn: ${selected.fqbn}`);
+      logs.push(`Selected port: ${selected.port}`);
+    } else {
+      logs.push("Selected board: not detected (compile-only mode)");
+      logs.push(`Selected fqbn: ${compileFqbn}`);
+      logs.push("Selected port: none");
+    }
 
     const { sketchDir, usedValues } = await createSketch(template, legacyParams);
     for (const [key, value] of Object.entries(usedValues)) {
@@ -405,16 +410,22 @@ async function handleUpload(req, res) {
     }
     logs.push(`Generated sketch: ${sketchDir}`);
 
-    await runCommand("arduino-cli", ["compile", "--fqbn", selected.fqbn, sketchDir], ROOT, logs);
+    await runCommand("arduino-cli", ["compile", "--fqbn", compileFqbn, sketchDir], ROOT, logs);
 
-    await runCommand(
-      "arduino-cli",
-      ["upload", "-p", selected.port, "--fqbn", selected.fqbn, sketchDir],
-      ROOT,
-      logs
-    );
+    if (selected && selected.port) {
+      await runCommand(
+        "arduino-cli",
+        ["upload", "-p", selected.port, "--fqbn", compileFqbn, sketchDir],
+        ROOT,
+        logs
+      );
 
-    sendJson(res, 200, { ok: true, message: "Compile + upload success", logs });
+      sendJson(res, 200, { ok: true, message: "Compile + upload success", logs });
+      return;
+    }
+
+    logs.push("Upload skipped: no connected port");
+    sendJson(res, 200, { ok: true, message: "Compile success (upload skipped: no port)", logs });
   } catch (err) {
     logs.push(String(err && err.message ? err.message : err));
     sendJson(res, 500, { ok: false, message: "Compile/Upload failed", logs });
