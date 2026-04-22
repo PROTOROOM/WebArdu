@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MatterMatters - WEBARDU</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+
+    :root {
+      --bg-0: #8f9185;
+      --bg-1: #b7b9ae;
+      --surface: #d6d7cd;
+      --surface-hi: #e2e3da;
+      --text: #2f3130;
+      --muted: #5a5d58;
+      --primary: #4b4e4a;
+      --primary-hover: #2f3130;
+      --border: #3c3e3b;
+      --ok: #242624;
+      --error: #3b2f2f;
+      --shadow: #7a7d72;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background:
+        repeating-linear-gradient(
+          0deg,
+          rgba(47, 49, 48, 0.08) 0,
+          rgba(47, 49, 48, 0.08) 1px,
+          transparent 1px,
+          transparent 4px
+        ),
+        radial-gradient(circle at 10% 10%, #dfe0d7 0%, transparent 35%),
+        radial-gradient(circle at 90% 80%, #c6c8bc 0%, transparent 30%),
+        linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%);
+      color: var(--text);
+      font-family: "Press Start 2P", "DungGeunMo", "Courier New", monospace;
+    }
+
+    main {
+      width: min(92vw, 460px);
+      background: var(--surface);
+      border: 3px solid var(--border);
+      border-radius: 0;
+      padding: 20px;
+      box-shadow: 8px 8px 0 var(--shadow);
+      image-rendering: pixelated;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 1rem;
+      line-height: 1.5;
+      color: var(--text);
+      text-shadow: 2px 2px 0 #ecece5;
+    }
+
+    p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 0.66rem;
+      line-height: 1.8;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.64rem;
+      color: var(--text);
+    }
+
+    input {
+      width: 100%;
+      border: 3px solid var(--border);
+      border-radius: 0;
+      padding: 10px;
+      font-size: 0.75rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--surface-hi);
+      margin-bottom: 8px;
+    }
+
+    .device-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .device-info {
+      font-size: 0.55rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .ghost-btn {
+      width: auto;
+      padding: 8px 9px;
+      border: 3px solid var(--border);
+      border-radius: 0;
+      background: var(--surface-hi);
+      color: var(--text);
+      font-size: 0.56rem;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: 3px 3px 0 var(--shadow);
+    }
+
+    .ghost-btn:hover:enabled {
+      background: #cdcec4;
+    }
+
+    small {
+      color: var(--muted);
+      display: block;
+      margin-bottom: 14px;
+      font-size: 0.53rem;
+      line-height: 1.6;
+    }
+
+    button {
+      width: 100%;
+      border: 3px solid var(--border);
+      background: var(--primary);
+      color: #eef0e8;
+      border-radius: 0;
+      padding: 10px 12px;
+      font-size: 0.72rem;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: 5px 5px 0 var(--shadow);
+      transition: transform 80ms ease-out;
+    }
+
+    button:hover:enabled {
+      background: var(--primary-hover);
+      color: #eef0e8;
+    }
+
+    button:active:enabled,
+    .ghost-btn:active:enabled {
+      transform: translate(2px, 2px);
+    }
+
+    button:disabled { opacity: 0.65; cursor: not-allowed; }
+
+    .status {
+      margin-top: 14px;
+      min-height: 1.4rem;
+      font-size: 0.62rem;
+      line-height: 1.6;
+      color: var(--text);
+    }
+
+    .status.ok { color: var(--ok); }
+    .status.error { color: var(--error); }
+
+    pre {
+      margin-top: 10px;
+      min-height: 120px;
+      max-height: 280px;
+      overflow: auto;
+      border-radius: 0;
+      border: 3px solid var(--border);
+      background: #cfd1c6;
+      padding: 10px;
+      font-size: 0.57rem;
+      line-height: 1.75;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #1f2120;
+    }
+
+    @media (max-width: 560px) {
+      main {
+        width: 100%;
+        padding: 16px;
+      }
+
+      .device-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .ghost-btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>MATTERMATTERS - WEBARDU</h1>
+    <p>Blink interval(ms) 값을 넣고 업로드를 실행하세요.</p>
+
+    <form id="uploadForm">
+      <label>Detected Board</label>
+      <div class="device-row">
+        <div id="boardInfo" class="device-info">Checking...</div>
+        <button id="refreshBtn" class="ghost-btn" type="button">RESCAN</button>
+      </div>
+
+      <label for="interval">Blink Interval (ms)</label>
+      <input id="interval" name="interval" type="number" min="50" max="5000" step="1" value="500" required>
+      <small>RANGE: 50 - 5000</small>
+      <button id="submitBtn" type="submit">UPLOAD</button>
+    </form>
+
+    <div id="status" class="status">Idle</div>
+    <pre id="logs"></pre>
+  </main>
+
+  <script>
+    const form = document.getElementById("uploadForm");
+    const intervalInput = document.getElementById("interval");
+    const submitBtn = document.getElementById("submitBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const boardInfoEl = document.getElementById("boardInfo");
+    const statusEl = document.getElementById("status");
+    const logsEl = document.getElementById("logs");
+    let selectedBoard = null;
+
+    function setStatus(text, type) {
+      statusEl.textContent = text;
+      statusEl.className = "status" + (type ? " " + type : "");
+    }
+
+    function setLogs(lines) {
+      logsEl.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
+    }
+
+    function renderBoardInfo(board) {
+      if (!board) {
+        boardInfoEl.textContent = "연결된 지원 보드 없음";
+        return;
+      }
+
+      boardInfoEl.textContent = `${board.boardName} / ${board.port}`;
+    }
+
+    async function refreshBoards() {
+      refreshBtn.disabled = true;
+      submitBtn.disabled = true;
+      setStatus("Checking board...", "");
+
+      try {
+        const res = await fetch("/boards");
+        const data = await res.json();
+
+        if (!res.ok || !data.ok || !data.selected) {
+          selectedBoard = null;
+          renderBoardInfo(null);
+          setStatus("No board connected", "error");
+          return;
+        }
+
+        selectedBoard = data.selected;
+        renderBoardInfo(selectedBoard);
+        setStatus("Idle", "");
+        submitBtn.disabled = false;
+      } catch (error) {
+        selectedBoard = null;
+        renderBoardInfo(null);
+        setStatus("Board scan failed", "error");
+        setLogs(String(error));
+      } finally {
+        refreshBtn.disabled = false;
+      }
+    }
+
+    refreshBtn.addEventListener("click", refreshBoards);
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      submitBtn.disabled = true;
+      setStatus("Compiling...", "");
+      setLogs("");
+
+      try {
+        const payload = {
+          interval: Number(intervalInput.value),
+          port: selectedBoard ? selectedBoard.port : "",
+          fqbn: selectedBoard ? selectedBoard.fqbn : ""
+        };
+        const res = await fetch("/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        setLogs(data.logs || []);
+
+        if (!res.ok || !data.ok) {
+          setStatus(data.message || "Error", "error");
+          return;
+        }
+
+        setStatus("Success", "ok");
+      } catch (error) {
+        setStatus("Network/Error", "error");
+        setLogs(String(error));
+      } finally {
+        submitBtn.disabled = !selectedBoard;
+      }
+    });
+
+    refreshBoards();
+  </script>
+</body>
+</html>
