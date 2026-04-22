@@ -11,7 +11,7 @@
   "params": [
     {
       "key": "CASE1_EXPR",
-      "label": "Case 1 Bytebeat Expression",
+      "label": "CODE 1 formula",
       "type": "code",
       "default": "(t * t * (t & 255) * x / 156 + (t * (t ^ 15) + t) * ((h | t / 2048 + 1 & 127) - h) / 64 & 127 - x * ((t >> 5 & 127) * 2 / 3 + 32))",
       "description": "세미콜론 없이 C 표현식만 입력하세요. 예: t*(t>>5|t>>8)"

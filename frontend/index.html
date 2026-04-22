@@ -148,6 +148,15 @@
       line-height: 1.6;
     }
 
+    .code-input {
+      font-family: "JetBrains Mono", "Fira Code", "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 0.92rem;
+      font-weight: 700;
+      letter-spacing: 0;
+      background: #d9dacd;
+      color: #1f2120;
+    }
+
     select {
       width: 100%;
       border: 3px solid var(--border);
@@ -199,10 +208,6 @@
       line-height: 1.6;
     }
 
-    .template-help {
-      margin-bottom: 0;
-    }
-
     #templateParams small {
       margin-bottom: 10px;
     }
@@ -246,18 +251,18 @@
 
     pre {
       margin-top: 10px;
-      min-height: 120px;
-      max-height: 280px;
+      min-height: 60px;
+      max-height: 140px;
       overflow: auto;
       border-radius: 0;
       border: 3px solid var(--border);
-      background: #cfd1c6;
+      background: #0b0b0b;
       padding: 10px;
       font-size: 0.57rem;
       line-height: 1.75;
       white-space: pre-wrap;
       word-break: break-word;
-      color: #1f2120;
+      color: #f5f5f5;
     }
 
     @media (max-width: 560px) {
@@ -285,7 +290,6 @@
       <section class="panel template-panel">
         <h2 class="panel-title">FIRMWARE SELECT</h2>
         <select id="templateSelect" name="template"></select>
-        <small id="templateDescription" class="template-help">템플릿 정보를 불러오는 중...</small>
       </section>
 
       <section class="panel params-panel">
@@ -308,7 +312,6 @@
   <script>
     const form = document.getElementById("uploadForm");
     const templateSelect = document.getElementById("templateSelect");
-    const templateDescription = document.getElementById("templateDescription");
     const templateParams = document.getElementById("templateParams");
     const submitBtn = document.getElementById("submitBtn");
     const refreshBtn = document.getElementById("refreshBtn");
@@ -375,6 +378,7 @@
       if (param.type === "code") {
         const textarea = document.createElement("textarea");
         textarea.value = String(param.default ?? "");
+        textarea.className = "code-input";
         return textarea;
       }
 
@@ -414,7 +418,7 @@
         templateParams.appendChild(label);
         templateParams.appendChild(input);
 
-        if (param.description || Number.isFinite(param.min) || Number.isFinite(param.max)) {
+        if (param.type !== "code" && (param.description || Number.isFinite(param.min) || Number.isFinite(param.max))) {
           const hint = document.createElement("small");
           const rangeText =
             Number.isFinite(param.min) || Number.isFinite(param.max)
@@ -432,7 +436,6 @@
 
       if (templates.length === 0) {
         selectedTemplate = null;
-        templateDescription.textContent = "사용 가능한 템플릿이 없습니다. templates/*.ino 파일을 추가하세요.";
         renderTemplateParams(null);
         updateSubmitState();
         return;
@@ -447,7 +450,6 @@
 
       selectedTemplate = templates.find((item) => item.id === (data.selected && data.selected.id)) || templates[0];
       templateSelect.value = selectedTemplate.id;
-      templateDescription.textContent = selectedTemplate.description || "설명 없음";
       renderTemplateParams(selectedTemplate);
       updateSubmitState();
     }
@@ -460,7 +462,6 @@
         if (!res.ok || !data.ok) {
           templates = [];
           selectedTemplate = null;
-          templateDescription.textContent = "템플릿 조회 실패";
           renderTemplateParams(null);
           updateSubmitState();
           return;
@@ -470,7 +471,6 @@
       } catch (error) {
         templates = [];
         selectedTemplate = null;
-        templateDescription.textContent = "템플릿 조회 실패";
         renderTemplateParams(null);
         setLogs(String(error));
         updateSubmitState();
@@ -512,9 +512,6 @@
 
     templateSelect.addEventListener("change", () => {
       selectedTemplate = templates.find((template) => template.id === templateSelect.value) || null;
-      templateDescription.textContent = selectedTemplate && selectedTemplate.description
-        ? selectedTemplate.description
-        : "설명 없음";
       renderTemplateParams(selectedTemplate);
       updateSubmitState();
     });
