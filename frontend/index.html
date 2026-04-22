@@ -337,11 +337,13 @@
         return;
       }
 
-      boardInfoEl.textContent = `${board.boardName} / ${board.port}`;
+      boardInfoEl.textContent = board.port
+        ? `${board.boardName} / ${board.port}`
+        : `${board.boardName} / port not found`;
     }
 
     function canUpload() {
-      return Boolean(selectedBoard && selectedTemplate);
+      return Boolean(selectedBoard && selectedTemplate && selectedBoard.port);
     }
 
     function updateSubmitState() {
@@ -495,12 +497,23 @@
 
         selectedBoard = data.selected;
         renderBoardInfo(selectedBoard);
-        setStatus("Idle", "");
+        if (!selectedBoard.port) {
+          setStatus("Board scan failed. Default UNO profile loaded", "error");
+          if (Array.isArray(data.logs) && data.logs.length > 0) {
+            setLogs(data.logs);
+          }
+        } else {
+          setStatus("Idle", "");
+        }
         updateSubmitState();
       } catch (error) {
-        selectedBoard = null;
-        renderBoardInfo(null);
-        setStatus("Board scan failed", "error");
+        selectedBoard = {
+          boardName: "Arduino Uno (default)",
+          fqbn: "arduino:avr:uno",
+          port: ""
+        };
+        renderBoardInfo(selectedBoard);
+        setStatus("Board scan failed. Default UNO profile loaded", "error");
         setLogs(String(error));
       } finally {
         refreshBtn.disabled = false;

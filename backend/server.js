@@ -322,6 +322,15 @@ function pickBoard(boards, parsedBody) {
   return boards[0] || null;
 }
 
+function buildFallbackBoard() {
+  return {
+    port: "",
+    fqbn: FQBN,
+    boardName: "Arduino Uno (default)",
+    isFallback: true
+  };
+}
+
 async function parseJsonBody(req) {
   const body = await new Promise((resolve, reject) => {
     let raw = "";
@@ -417,14 +426,22 @@ async function handleBoards(res) {
 
   try {
     const boards = await detectBoards(logs);
+    const selected = boards[0] || buildFallbackBoard();
     sendJson(res, 200, {
       ok: true,
       boards,
-      selected: boards[0] || null
+      selected,
+      fallback: boards.length === 0
     });
   } catch (err) {
     logs.push(String(err && err.message ? err.message : err));
-    sendJson(res, 500, { ok: false, boards: [], selected: null, logs });
+    sendJson(res, 200, {
+      ok: true,
+      boards: [],
+      selected: buildFallbackBoard(),
+      fallback: true,
+      logs
+    });
   }
 }
 
