@@ -13,7 +13,7 @@
       "key": "CASE1_EXPR",
       "label": "CODE 1 formula",
       "type": "code",
-      "default": "(t * t * (t & 255) * x / 156 + (t * (t ^ 15) + t) * ((h | t / 2048 + 1 & 127) - h) / 64 & 127 - x * ((t >> 5 & 127) * 2 / 3 + 32))",
+      "default": "(~t >> 2) * ((127 & t * (7 & t >> a)) < (245 & t * (2 + (55 & t >> b))))",
       "description": "세미콜론 없이 C 표현식만 입력하세요. 예: t*(t>>5|t>>8)"
     }
   ]
@@ -178,10 +178,8 @@ ISR(TIMER1_COMPA_vect) {
       break;
 
     case 1:
-      x = t >> b & 1;
-      h = (t >> a) + 4;
       value = {{CASE1_EXPR}};
-      //      value = ((t&((t>>a)))+(t|((t>>b))))&(t>>(a+1))|(t>>a)&(t*(t>>b));
+      
       aTop = 20;
       aBottom = 0;
       bTop = 20;
