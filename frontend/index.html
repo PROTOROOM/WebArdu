@@ -8,18 +8,18 @@
     @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
 
     :root {
-      --bg-0: #8f9185;
-      --bg-1: #b7b9ae;
-      --surface: #d6d7cd;
-      --surface-hi: #e2e3da;
-      --text: #2f3130;
-      --muted: #5a5d58;
+      --bg-0: #b9bcb0;
+      --bg-1: #dde0d3;
+      --surface: #eceee3;
+      --surface-hi: #f5f7ee;
+      --text: #2c2e2d;
+      --muted: #565954;
       --primary: #4b4e4a;
       --primary-hover: #2f3130;
       --border: #3c3e3b;
       --ok: #242624;
       --error: #3b2f2f;
-      --shadow: #7a7d72;
+      --shadow: #8f9287;
     }
 
     * { box-sizing: border-box; }
@@ -231,6 +231,18 @@
       color: #eef0e8;
     }
 
+    #submitBtn {
+      background: #b6404f;
+      color: #fff5f6;
+      border-color: #5b2b32;
+      box-shadow: 5px 5px 0 #8b3f49;
+    }
+
+    #submitBtn:hover:enabled {
+      background: #9f3442;
+      color: #fff5f6;
+    }
+
     button:active:enabled,
     .ghost-btn:active:enabled {
       transform: translate(2px, 2px);
@@ -343,7 +355,7 @@
     }
 
     function canUpload() {
-      return Boolean(selectedBoard && selectedTemplate && selectedBoard.port);
+      return Boolean(selectedBoard && selectedTemplate);
     }
 
     function updateSubmitState() {
@@ -498,7 +510,7 @@
         selectedBoard = data.selected;
         renderBoardInfo(selectedBoard);
         if (!selectedBoard.port) {
-          setStatus("Board scan failed. Default UNO profile loaded", "error");
+          setStatus("No port detected: compile-only mode (UNO profile)", "error");
           if (Array.isArray(data.logs) && data.logs.length > 0) {
             setLogs(data.logs);
           }
