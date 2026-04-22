@@ -9,19 +9,186 @@ const FQBN = process.env.ARDUINO_FQBN || "arduino:avr:uno";
 
 const ROOT = path.resolve(__dirname, "..");
 const FRONTEND_FILE = path.join(ROOT, "frontend", "index.html");
-const TEMPLATE_FILE = path.join(ROOT, "templates", "blink.ino");
+const TEMPLATES_DIR = path.join(ROOT, "templates");
 const GENERATED_ROOT = path.join(ROOT, "generated");
 
-function clampInterval(value) {
-  const fallback = 500;
-  if (!Number.isFinite(value)) {
-    return fallback;
+function toTemplateId(filename) {
+  return path.basename(filename, path.extname(filename));
+}
+
+function uniqueStrings(items) {
+  return [...new Set(items.filter((item) => typeof item === "string" && item.trim() !== ""))];
+}
+
+function extractPlaceholders(source) {
+  const matches = source.match(/{{\s*[A-Z0-9_]+\s*}}/g) || [];
+  const keys = matches.map((token) => token.replace(/[{}\s]/g, ""));
+  return uniqueStrings(keys);
+}
+
+function parseTemplateMeta(source) {
+  const match = source.match(/\/\*\s*@WEBARDU_META\s*([\s\S]*?)\*\//);
+  if (!match) return null;
+
+  try {
+    return JSON.parse(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeParamDefinition(raw) {
+  if (!raw || typeof raw !== "object") return null;
+
+  const key = typeof raw.key === "string" ? raw.key.trim().toUpperCase() : "";
+  if (!key) return null;
+
+  const type = typeof raw.type === "string" ? raw.type.trim().toLowerCase() : "text";
+  const fallbackType = ["int", "float", "bool", "enum", "text"].includes(type) ? type : "text";
+  const min = Number.isFinite(Number(raw.min)) ? Number(raw.min) : null;
+  const max = Number.isFinite(Number(raw.max)) ? Number(raw.max) : null;
+  const options = Array.isArray(raw.options) ? uniqueStrings(raw.options.map((item) => String(item))) : [];
+
+  return {
+    key,
+    label: typeof raw.label === "string" && raw.label.trim() ? raw.label.trim() : key,
+    type: fallbackType,
+    description: typeof raw.description === "string" ? raw.description : "",
+    default: raw.default,
+    min,
+    max,
+    options
+  };
+}
+
+function normalizeTemplate(templatePath, source) {
+  const meta = parseTemplateMeta(source) || {};
+  const inferredKeys = extractPlaceholders(source);
+  const rawParams = Array.isArray(meta.params) ? meta.params : [];
+  const metaParams = rawParams.map(normalizeParamDefinition).filter(Boolean);
+
+  const mergedParamMap = new Map();
+  for (const param of metaParams) {
+    mergedParamMap.set(param.key, param);
   }
 
-  const n = Math.round(value);
-  if (n < 50) return 50;
-  if (n > 5000) return 5000;
-  return n;
+  for (const key of inferredKeys) {
+    if (!mergedParamMap.has(key)) {
+      mergedParamMap.set(key, {
+        key,
+        label: key,
+        type: "text",
+        description: "",
+        default: "",
+        min: null,
+        max: null,
+        options: []
+      });
+    }
+  }
+
+  const id = typeof meta.id === "string" && meta.id.trim() ? meta.id.trim() : toTemplateId(templatePath);
+
+  return {
+    id,
+    filePath: templatePath,
+    fileName: path.basename(templatePath),
+    name: typeof meta.name === "string" && meta.name.trim() ? meta.name.trim() : id,
+    description: typeof meta.description === "string" ? meta.description : "",
+    source,
+    params: [...mergedParamMap.values()]
+  };
+}
+
+async function loadTemplates() {
+  const entries = await fs.readdir(TEMPLATES_DIR, { withFileTypes: true });
+  const files = entries
+    .filter((entry) => entry.isFile() && path.extname(entry.name).toLowerCase() === ".ino")
+    .map((entry) => path.join(TEMPLATES_DIR, entry.name))
+    .sort();
+
+  const templates = [];
+  for (const filePath of files) {
+    const source = await fs.readFile(filePath, "utf8");
+    templates.push(normalizeTemplate(filePath, source));
+  }
+
+  return templates;
+}
+
+function chooseTemplate(templates, parsedBody) {
+  const requestedId =
+    parsedBody && typeof parsedBody.templateId === "string" ? parsedBody.templateId.trim() : "";
+
+  if (requestedId) {
+    return (
+      templates.find((template) => template.id === requestedId || template.fileName === requestedId) || null
+    );
+  }
+
+  return templates[0] || null;
+}
+
+function clampNumber(value, min, max) {
+  let result = value;
+  if (Number.isFinite(min) && result < min) result = min;
+  if (Number.isFinite(max) && result > max) result = max;
+  return result;
+}
+
+function normalizeParamValue(definition, rawValue) {
+  const fallback = definition.default;
+
+  if (definition.type === "bool") {
+    if (typeof rawValue === "boolean") return rawValue ? "true" : "false";
+    if (typeof rawValue === "number") return rawValue === 0 ? "false" : "true";
+    const text = String(rawValue ?? "").trim().toLowerCase();
+    if (["1", "true", "on", "yes"].includes(text)) return "true";
+    if (["0", "false", "off", "no"].includes(text)) return "false";
+    return fallback ? "true" : "false";
+  }
+
+  if (definition.type === "int") {
+    const n = Number(rawValue);
+    const picked = Number.isFinite(n) ? n : Number(fallback);
+    const normalized = Number.isFinite(picked) ? Math.round(picked) : 0;
+    return String(clampNumber(normalized, definition.min, definition.max));
+  }
+
+  if (definition.type === "float") {
+    const n = Number(rawValue);
+    const picked = Number.isFinite(n) ? n : Number(fallback);
+    const normalized = Number.isFinite(picked) ? picked : 0;
+    return String(clampNumber(normalized, definition.min, definition.max));
+  }
+
+  if (definition.type === "enum") {
+    const value = String(rawValue ?? fallback ?? "");
+    if (definition.options.includes(value)) return value;
+    return definition.options[0] || value;
+  }
+
+  const text = String(rawValue ?? fallback ?? "");
+  return text;
+}
+
+function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function applyTemplate(template, providedParams) {
+  const params = providedParams && typeof providedParams === "object" ? providedParams : {};
+  const usedValues = {};
+  let rendered = template.source;
+
+  for (const definition of template.params) {
+    const value = normalizeParamValue(definition, params[definition.key]);
+    usedValues[definition.key] = value;
+    const token = new RegExp(`{{\\s*${escapeRegex(definition.key)}\\s*}}`, "g");
+    rendered = rendered.replace(token, value);
+  }
+
+  return { rendered, usedValues };
 }
 
 function runCommand(command, args, workdir, logs) {
@@ -168,17 +335,16 @@ async function parseJsonBody(req) {
   return body ? JSON.parse(body) : {};
 }
 
-async function createSketch(interval) {
-  const template = await fs.readFile(TEMPLATE_FILE, "utf8");
-  const source = template.replace("{{INTERVAL}}", String(interval));
+async function createSketch(template, params) {
+  const { rendered, usedValues } = applyTemplate(template, params);
 
-  const dirName = `sketch_${Date.now()}`;
+  const dirName = `${template.id}_sketch_${Date.now()}`;
   const sketchDir = path.join(GENERATED_ROOT, dirName);
   await fs.mkdir(sketchDir, { recursive: true });
 
   const sketchFile = path.join(sketchDir, `${dirName}.ino`);
-  await fs.writeFile(sketchFile, source, "utf8");
-  return sketchDir;
+  await fs.writeFile(sketchFile, rendered, "utf8");
+  return { sketchDir, usedValues };
 }
 
 async function handleUpload(req, res) {
@@ -186,7 +352,24 @@ async function handleUpload(req, res) {
 
   try {
     const parsed = await parseJsonBody(req);
-    const interval = clampInterval(Number(parsed.interval));
+    const templates = await loadTemplates();
+    const template = chooseTemplate(templates, parsed);
+    if (!template) {
+      sendJson(res, 400, {
+        ok: false,
+        message: "No template found in templates/. Add at least one .ino template.",
+        logs
+      });
+      return;
+    }
+
+    const legacyParams =
+      parsed && parsed.params && typeof parsed.params === "object"
+        ? parsed.params
+        : {
+            INTERVAL: parsed.interval
+          };
+
     const boards = await detectBoards(logs);
     const selected = pickBoard(boards, parsed);
 
@@ -200,12 +383,15 @@ async function handleUpload(req, res) {
       return;
     }
 
-    logs.push(`Interval used: ${interval}ms`);
+    logs.push(`Selected template: ${template.id} (${template.fileName})`);
     logs.push(`Selected board: ${selected.boardName}`);
     logs.push(`Selected fqbn: ${selected.fqbn}`);
     logs.push(`Selected port: ${selected.port}`);
 
-    const sketchDir = await createSketch(interval);
+    const { sketchDir, usedValues } = await createSketch(template, legacyParams);
+    for (const [key, value] of Object.entries(usedValues)) {
+      logs.push(`Param ${key}: ${value}`);
+    }
     logs.push(`Generated sketch: ${sketchDir}`);
 
     await runCommand("arduino-cli", ["compile", "--fqbn", selected.fqbn, sketchDir], ROOT, logs);
@@ -237,6 +423,31 @@ async function handleBoards(res) {
   } catch (err) {
     logs.push(String(err && err.message ? err.message : err));
     sendJson(res, 500, { ok: false, boards: [], selected: null, logs });
+  }
+}
+
+async function handleTemplates(res) {
+  try {
+    const templates = await loadTemplates();
+    const safe = templates.map((template) => ({
+      id: template.id,
+      fileName: template.fileName,
+      name: template.name,
+      description: template.description,
+      params: template.params
+    }));
+    sendJson(res, 200, {
+      ok: true,
+      templates: safe,
+      selected: safe[0] || null
+    });
+  } catch (err) {
+    sendJson(res, 500, {
+      ok: false,
+      templates: [],
+      selected: null,
+      message: String(err && err.message ? err.message : err)
+    });
   }
 }
 
@@ -282,6 +493,11 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && req.url === "/boards") {
     await handleBoards(res);
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/templates") {
+    await handleTemplates(res);
     return;
   }
 

@@ -2,14 +2,15 @@
 
 워크숍 환경에서 Arduino 펌웨어의 일부 파라미터만 안전하게 수정하고 업로드하기 위한 최소 웹 인터페이스입니다.
 
-현재 구현은 Blink 템플릿의 interval(ms) 값만 입력받아 `arduino-cli`로 compile/upload를 수행합니다.
+현재 구현은 `templates/*.ino` 템플릿을 동적으로 읽어, 템플릿별 파라미터를 입력받아 `arduino-cli`로 compile/upload를 수행합니다.
 
 ## 현재 기능
 
-- 단일 입력값 기반 업로드
-  - Blink interval (50~5000ms)
+- 멀티 템플릿 업로드
+  - `templates/*.ino` 자동 인식
+  - 템플릿별 파라미터 UI 자동 생성
 - 템플릿 기반 코드 생성
-  - `templates/blink.ino`의 `{{INTERVAL}}` 치환
+  - `{{PARAM_NAME}}` 치환
 - Arduino 보드 자동 감지
   - `arduino-cli board list --format json` 결과 기반
   - 첫 번째 지원 보드 자동 선택
@@ -74,10 +75,11 @@ npm start
 
 1. Arduino 보드를 USB로 연결
 2. 브라우저에서 `http://127.0.0.1:3000` 접속
-3. 상단 `Detected Board`에 자동 선택된 보드/포트 확인
-4. 필요 시 `RESCAN` 클릭
-5. interval 값 입력 후 `UPLOAD` 클릭
-6. 하단 로그로 compile/upload 결과 확인
+3. 템플릿을 선택하고 파라미터를 입력
+4. 상단 `Detected Board`에 자동 선택된 보드/포트 확인
+5. 필요 시 `RESCAN` 클릭
+6. `UPLOAD` 클릭
+7. 하단 로그로 compile/upload 결과 확인
 
 ## API
 
@@ -105,6 +107,39 @@ npm start
 }
 ```
 
+### `GET /templates`
+
+- `templates/*.ino` 목록과 각 템플릿의 파라미터 스키마 반환
+
+응답 예시:
+
+```json
+{
+  "ok": true,
+  "templates": [
+    {
+      "id": "blink",
+      "fileName": "blink.ino",
+      "name": "Blink",
+      "description": "LED를 고정 간격으로 점멸합니다.",
+      "params": [
+        {
+          "key": "INTERVAL",
+          "label": "Blink Interval (ms)",
+          "type": "int",
+          "min": 50,
+          "max": 5000,
+          "default": 500
+        }
+      ]
+    }
+  ],
+  "selected": {
+    "id": "blink"
+  }
+}
+```
+
 ### `POST /upload`
 
 - interval을 검증/보정 후 템플릿 생성 → compile → upload 실행
@@ -113,7 +148,10 @@ npm start
 
 ```json
 {
-  "interval": 500,
+  "templateId": "blink",
+  "params": {
+    "INTERVAL": 500
+  },
   "port": "/dev/tty.usbmodem1101",
   "fqbn": "arduino:avr:uno"
 }
@@ -123,6 +161,39 @@ npm start
 
 - 서버는 업로드 직전에 보드 목록을 다시 읽고, 유효한 대상이 없으면 실패를 반환합니다.
 - 현재 기본 정책은 "자동 첫 보드 선택"입니다.
+
+## 템플릿 추가 방법
+
+`templates/`에 `.ino` 파일을 추가하면 자동으로 목록에 나타납니다.
+
+권장 형식:
+
+```cpp
+/* @WEBARDU_META
+{
+  "id": "blink",
+  "name": "Blink",
+  "description": "LED를 고정 간격으로 점멸합니다.",
+  "params": [
+    {
+      "key": "INTERVAL",
+      "label": "Blink Interval (ms)",
+      "type": "int",
+      "min": 50,
+      "max": 5000,
+      "default": 500
+    }
+  ]
+}
+*/
+
+int interval = {{INTERVAL}};
+```
+
+메모:
+- `key`는 `{{KEY}}` 플레이스홀더와 동일해야 합니다.
+- `params`가 없으면 플레이스홀더를 자동 추론해 텍스트 입력으로 노출합니다.
+- 지원 타입: `int`, `float`, `bool`, `enum`, `text`
 
 ## 환경 변수
 

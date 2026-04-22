@@ -89,6 +89,18 @@
       margin-bottom: 8px;
     }
 
+    select {
+      width: 100%;
+      border: 3px solid var(--border);
+      border-radius: 0;
+      padding: 10px;
+      font-size: 0.75rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--surface-hi);
+      margin-bottom: 8px;
+    }
+
     .device-row {
       display: flex;
       justify-content: space-between;
@@ -201,18 +213,20 @@
 <body>
   <main>
     <h1>MATTERMATTERS - WEBARDU</h1>
-    <p>Blink interval(ms) 값을 넣고 업로드를 실행하세요.</p>
+    <p>템플릿을 선택하고 파라미터를 입력한 뒤 업로드를 실행하세요.</p>
 
     <form id="uploadForm">
+      <label for="templateSelect">Template</label>
+      <select id="templateSelect" name="template"></select>
+      <small id="templateDescription">템플릿 정보를 불러오는 중...</small>
+
+      <div id="templateParams"></div>
+
       <label>Detected Board</label>
       <div class="device-row">
         <div id="boardInfo" class="device-info">Checking...</div>
         <button id="refreshBtn" class="ghost-btn" type="button">RESCAN</button>
       </div>
-
-      <label for="interval">Blink Interval (ms)</label>
-      <input id="interval" name="interval" type="number" min="50" max="5000" step="1" value="500" required>
-      <small>RANGE: 50 - 5000</small>
       <button id="submitBtn" type="submit">UPLOAD</button>
     </form>
 
@@ -222,13 +236,17 @@
 
   <script>
     const form = document.getElementById("uploadForm");
-    const intervalInput = document.getElementById("interval");
+    const templateSelect = document.getElementById("templateSelect");
+    const templateDescription = document.getElementById("templateDescription");
+    const templateParams = document.getElementById("templateParams");
     const submitBtn = document.getElementById("submitBtn");
     const refreshBtn = document.getElementById("refreshBtn");
     const boardInfoEl = document.getElementById("boardInfo");
     const statusEl = document.getElementById("status");
     const logsEl = document.getElementById("logs");
     let selectedBoard = null;
+    let templates = [];
+    let selectedTemplate = null;
 
     function setStatus(text, type) {
       statusEl.textContent = text;
@@ -246,6 +264,140 @@
       }
 
       boardInfoEl.textContent = `${board.boardName} / ${board.port}`;
+    }
+
+    function canUpload() {
+      return Boolean(selectedBoard && selectedTemplate);
+    }
+
+    function updateSubmitState() {
+      submitBtn.disabled = !canUpload();
+    }
+
+    function createParamInput(param) {
+      if (param.type === "enum") {
+        const select = document.createElement("select");
+        for (const option of param.options || []) {
+          const item = document.createElement("option");
+          item.value = option;
+          item.textContent = option;
+          select.appendChild(item);
+        }
+        select.value = String(param.default ?? (param.options && param.options[0]) ?? "");
+        return select;
+      }
+
+      if (param.type === "bool") {
+        const select = document.createElement("select");
+        const trueOption = document.createElement("option");
+        trueOption.value = "true";
+        trueOption.textContent = "true";
+        const falseOption = document.createElement("option");
+        falseOption.value = "false";
+        falseOption.textContent = "false";
+        select.appendChild(trueOption);
+        select.appendChild(falseOption);
+        select.value = String(param.default ?? "false") === "true" ? "true" : "false";
+        return select;
+      }
+
+      const input = document.createElement("input");
+      if (param.type === "int" || param.type === "float") {
+        input.type = "number";
+        if (param.type === "int") input.step = "1";
+        if (Number.isFinite(param.min)) input.min = String(param.min);
+        if (Number.isFinite(param.max)) input.max = String(param.max);
+      } else {
+        input.type = "text";
+      }
+
+      input.value = String(param.default ?? "");
+      return input;
+    }
+
+    function renderTemplateParams(template) {
+      templateParams.innerHTML = "";
+
+      if (!template || !Array.isArray(template.params) || template.params.length === 0) {
+        return;
+      }
+
+      for (const param of template.params) {
+        const label = document.createElement("label");
+        label.textContent = param.label || param.key;
+        label.htmlFor = `param_${param.key}`;
+
+        const input = createParamInput(param);
+        input.id = `param_${param.key}`;
+        input.setAttribute("data-param-key", param.key);
+        if (param.description) {
+          input.title = param.description;
+        }
+
+        templateParams.appendChild(label);
+        templateParams.appendChild(input);
+
+        if (param.description || Number.isFinite(param.min) || Number.isFinite(param.max)) {
+          const hint = document.createElement("small");
+          const rangeText =
+            Number.isFinite(param.min) || Number.isFinite(param.max)
+              ? `RANGE: ${Number.isFinite(param.min) ? param.min : "-inf"} ~ ${Number.isFinite(param.max) ? param.max : "+inf"}`
+              : "";
+          hint.textContent = [param.description || "", rangeText].filter(Boolean).join(" / ");
+          templateParams.appendChild(hint);
+        }
+      }
+    }
+
+    function renderTemplateOptions(data) {
+      templates = Array.isArray(data.templates) ? data.templates : [];
+      templateSelect.innerHTML = "";
+
+      if (templates.length === 0) {
+        selectedTemplate = null;
+        templateDescription.textContent = "사용 가능한 템플릿이 없습니다. templates/*.ino 파일을 추가하세요.";
+        renderTemplateParams(null);
+        updateSubmitState();
+        return;
+      }
+
+      for (const template of templates) {
+        const option = document.createElement("option");
+        option.value = template.id;
+        option.textContent = `${template.name} (${template.fileName})`;
+        templateSelect.appendChild(option);
+      }
+
+      selectedTemplate = templates.find((item) => item.id === (data.selected && data.selected.id)) || templates[0];
+      templateSelect.value = selectedTemplate.id;
+      templateDescription.textContent = selectedTemplate.description || "설명 없음";
+      renderTemplateParams(selectedTemplate);
+      updateSubmitState();
+    }
+
+    async function refreshTemplates() {
+      try {
+        const res = await fetch("/templates");
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          templates = [];
+          selectedTemplate = null;
+          templateDescription.textContent = "템플릿 조회 실패";
+          renderTemplateParams(null);
+          updateSubmitState();
+          return;
+        }
+
+        renderTemplateOptions(data);
+      } catch (error) {
+        templates = [];
+        selectedTemplate = null;
+        templateDescription.textContent = "템플릿 조회 실패";
+        renderTemplateParams(null);
+        setLogs(String(error));
+        updateSubmitState();
+      }
     }
 
     async function refreshBoards() {
@@ -267,7 +419,7 @@
         selectedBoard = data.selected;
         renderBoardInfo(selectedBoard);
         setStatus("Idle", "");
-        submitBtn.disabled = false;
+        updateSubmitState();
       } catch (error) {
         selectedBoard = null;
         renderBoardInfo(null);
@@ -275,10 +427,20 @@
         setLogs(String(error));
       } finally {
         refreshBtn.disabled = false;
+        updateSubmitState();
       }
     }
 
     refreshBtn.addEventListener("click", refreshBoards);
+
+    templateSelect.addEventListener("change", () => {
+      selectedTemplate = templates.find((template) => template.id === templateSelect.value) || null;
+      templateDescription.textContent = selectedTemplate && selectedTemplate.description
+        ? selectedTemplate.description
+        : "설명 없음";
+      renderTemplateParams(selectedTemplate);
+      updateSubmitState();
+    });
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -287,8 +449,15 @@
       setLogs("");
 
       try {
+        const params = {};
+        const paramInputs = templateParams.querySelectorAll("[data-param-key]");
+        for (const el of paramInputs) {
+          params[el.getAttribute("data-param-key")] = el.value;
+        }
+
         const payload = {
-          interval: Number(intervalInput.value),
+          templateId: selectedTemplate ? selectedTemplate.id : "",
+          params,
           port: selectedBoard ? selectedBoard.port : "",
           fqbn: selectedBoard ? selectedBoard.fqbn : ""
         };
@@ -311,10 +480,11 @@
         setStatus("Network/Error", "error");
         setLogs(String(error));
       } finally {
-        submitBtn.disabled = !selectedBoard;
+        updateSubmitState();
       }
     });
 
+    refreshTemplates();
     refreshBoards();
   </script>
 </body>
