@@ -133,6 +133,21 @@
       margin-bottom: 8px;
     }
 
+    textarea {
+      width: 100%;
+      border: 3px solid var(--border);
+      border-radius: 0;
+      padding: 10px;
+      font-size: 0.65rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--surface-hi);
+      margin-bottom: 8px;
+      min-height: 90px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+
     select {
       width: 100%;
       border: 3px solid var(--border);
@@ -355,6 +370,12 @@
         select.appendChild(falseOption);
         select.value = String(param.default ?? "false") === "true" ? "true" : "false";
         return select;
+      }
+
+      if (param.type === "code") {
+        const textarea = document.createElement("textarea");
+        textarea.value = String(param.default ?? "");
+        return textarea;
       }
 
       const input = document.createElement("input");

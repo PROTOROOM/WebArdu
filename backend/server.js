@@ -44,7 +44,9 @@ function normalizeParamDefinition(raw) {
   if (!key) return null;
 
   const type = typeof raw.type === "string" ? raw.type.trim().toLowerCase() : "text";
-  const fallbackType = ["int", "float", "bool", "enum", "text"].includes(type) ? type : "text";
+  const fallbackType = ["int", "float", "bool", "enum", "text", "code"].includes(type)
+    ? type
+    : "text";
   const min = Number.isFinite(Number(raw.min)) ? Number(raw.min) : null;
   const max = Number.isFinite(Number(raw.max)) ? Number(raw.max) : null;
   const options = Array.isArray(raw.options) ? uniqueStrings(raw.options.map((item) => String(item))) : [];

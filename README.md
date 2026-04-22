@@ -193,7 +193,7 @@ int interval = {{INTERVAL}};
 메모:
 - `key`는 `{{KEY}}` 플레이스홀더와 동일해야 합니다.
 - `params`가 없으면 플레이스홀더를 자동 추론해 텍스트 입력으로 노출합니다.
-- 지원 타입: `int`, `float`, `bool`, `enum`, `text`
+- 지원 타입: `int`, `float`, `bool`, `enum`, `text`, `code`
 
 ## 환경 변수
 
