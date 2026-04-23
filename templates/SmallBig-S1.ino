@@ -37,7 +37,7 @@ U8G2_SSD1309_128X64_NONAME2_1_4W_HW_SPI u8g2(U8G2_R0, 9, 8); // CS, DC, CLK(13),
 #define SAMPLE_RATE 8000
 
 
-const char expr0[] PROGMEM = "(t*t*(t&255)*x/156+(t*(t^15)+t)*((h|t/2048+1&127)-h)/64&127-x*((t>>5&127)*2/3+32))";
+const char expr0[] PROGMEM = "{{CASE1_EXPR}}";
 const char expr1[] PROGMEM = "(~t >> 2) * ((127 & t * (7 & t >> a)) < (245 & t * (2 + (55 & t >> b))))";
 const char expr2[] PROGMEM = "(t * (t >> (a / 10) | t >> (b / 10))) >> (t >> ((b / 10) * 2))";
 const char expr3[] PROGMEM = "t * (((t >> a) & (t >> 5)) & ((b + 73) & (t >> 3)))";

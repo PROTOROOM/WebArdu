@@ -280,16 +280,41 @@ function normalizeBoards(raw) {
     const matches = Array.isArray(item.matching_boards) ? item.matching_boards : [];
     const board = matches.find((b) => b && b.fqbn) || matches[0] || null;
 
-    if (!board || !board.fqbn) continue;
+    if (board && board.fqbn) {
+      result.push({
+        port,
+        fqbn: board.fqbn,
+        boardName: board.name || "Unknown board"
+      });
+      continue;
+    }
 
     result.push({
       port,
-      fqbn: board.fqbn,
-      boardName: board.name || "Unknown board"
+      fqbn: FQBN,
+      boardName: "Unknown board (UNO fallback)",
+      isFallback: true
     });
   }
 
   return result;
+}
+
+function scoreBoard(board) {
+  const port = String(board && board.port ? board.port : "").toLowerCase();
+  if (port.includes("usbserial")) return 0;
+  if (port.includes("usbmodem")) return 1;
+  return 2;
+}
+
+function choosePreferredBoard(boards) {
+  if (!Array.isArray(boards) || boards.length === 0) return null;
+
+  return [...boards].sort((a, b) => {
+    const scoreDiff = scoreBoard(a) - scoreBoard(b);
+    if (scoreDiff !== 0) return scoreDiff;
+    return String(a.port || "").localeCompare(String(b.port || ""));
+  })[0];
 }
 
 async function detectBoards(logs) {
@@ -319,7 +344,7 @@ function pickBoard(boards, parsedBody) {
     );
   }
 
-  return boards[0] || null;
+  return choosePreferredBoard(boards);
 }
 
 function buildFallbackBoard() {
@@ -437,7 +462,7 @@ async function handleBoards(res) {
 
   try {
     const boards = await detectBoards(logs);
-    const selected = boards[0] || buildFallbackBoard();
+    const selected = choosePreferredBoard(boards) || buildFallbackBoard();
     sendJson(res, 200, {
       ok: true,
       boards,
