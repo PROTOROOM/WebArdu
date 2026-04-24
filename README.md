@@ -219,3 +219,4 @@ int interval = {{INTERVAL}};
 
 - 구현 진행 내역: `PROJECT_DEVLOG.md`
 - 기획 문서: `PROJECT_PLAN.md`
+- 개발 : Seungbum Kim with GPT-5.3 Codex OpenCode Zen (2026-04) 
